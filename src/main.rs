@@ -1,13 +1,10 @@
 use std::thread;
 use std::sync::mpsc::{channel};
 use std::time::Duration;
-
 use std::io::{stdin, stdout};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
-use termion::clear;
-
 use rand::Rng;
 
 fn main() {
@@ -44,12 +41,16 @@ fn main() {
                 game.set_direction(key);
             }
         }
-        game.move_snake();
+        if !game.move_snake() {
+            drop(rx);
+            println!("YOU LOST!");
+            break;
+        }
         game.draw();
         thread::sleep(Duration::from_millis(speed_milliseconds as u64));
     }
 
-    keyboard_handle.join().unwrap();
+    keyboard_handle.join().expect("I broke");
 }
 
 struct Game {
@@ -89,7 +90,8 @@ impl Game {
         }
     }
 
-    fn move_snake(&mut self) {
+    fn move_snake(&mut self) -> bool {
+        let mut can_move = true;
         let mut head: [usize; 2] = self.snake[0];
         let tail: [usize; 2] = self.snake.pop().unwrap();
 
@@ -99,7 +101,6 @@ impl Game {
             GlideDirection::Down => head[1] += 1,
             GlideDirection::Right => head[0] += 1,
             GlideDirection::Left => head[0] -= 1,
-            _ => (),
         }
 
         //Remove tail, add head
@@ -108,13 +109,14 @@ impl Game {
                 self.snake.push(tail);
                 self.spawn_food();
             }
-            GameObject::Wall => (),
-            GameObject::Snake => (),
+            GameObject::Wall => can_move = false,
+            GameObject::Snake => can_move = false,
             GameObject::Space => self.field[tail[1]][tail[0]] = GameObject::Space,
-            _ => {}
         };
         self.field[head[1]][head[0]] = GameObject::Snake;
         self.snake.insert(0, head);
+
+        return can_move;
     }
 
     fn spawn_snake(&mut self) {
