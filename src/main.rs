@@ -1,42 +1,67 @@
-use rand::Rng;
+use std::thread;
+use std::sync::mpsc::{channel};
+use std::time::Duration;
+
 use std::io::{stdin, stdout};
-use std::process;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
+use termion::clear;
+
+use rand::Rng;
 
 fn main() {
-    let mut game: Game = Game::new(60, 30, 1000);
-    let _stdout = stdout().into_raw_mode().unwrap();
-    let stdin = stdin();
+    let (tx, rx) = channel::<GameKeys>();
+    let _stdout = stdout().into_raw_mode();
+    let mut game: Game = Game::new(30, 15);
+    let speed_milliseconds: u16 = 100;
 
+    let keyboard_handle = thread::spawn(move || {
+        let stdin = stdin();
+
+        for c in stdin.keys() {
+            match c.unwrap() {
+                Key::Up => tx.send(GameKeys::Up).unwrap(),
+                Key::Down => tx.send(GameKeys::Down).unwrap(),
+                Key::Right => tx.send(GameKeys::Right).unwrap(),
+                Key::Left => tx.send(GameKeys::Left).unwrap(),
+                Key::Esc => break,
+                _ => continue,
+            }
+        }
+        tx.send(GameKeys::Esc).unwrap();
+    });
+
+    // The game starts here
+    clear_screen();
     game.spawn_snake();
     game.spawn_food();
-    game.draw();
-
-    for c in stdin.keys() {
-        match c.unwrap() {
-            Key::Up => game.move_snake(GlideDirection::Up),
-            Key::Down => game.move_snake(GlideDirection::Down),
-            Key::Right => game.move_snake(GlideDirection::Right),
-            Key::Left => game.move_snake(GlideDirection::Left),
-            Key::Esc => break,
-            _ => {}
+    loop {
+        if let Some(key) = rx.try_iter().last() {
+            if let GameKeys::Esc = key {
+                break;
+            } else {
+                game.set_direction(key);
+            }
         }
+        game.move_snake();
         game.draw();
+        thread::sleep(Duration::from_millis(speed_milliseconds as u64));
     }
+
+    keyboard_handle.join().unwrap();
 }
 
 struct Game {
     width: u16,
     height: u16,
-    speed: u16,
     field: Vec<Vec<GameObject>>,
     snake: Vec<[usize; 2]>,
     food: [usize; 2],
+    direction: GlideDirection,
 }
 impl Game {
-    fn new(width: u16, height: u16, speed_milliseconds: u16) -> Self {
+    fn new(width: u16, height: u16) -> Self {
         let mut field: Vec<Vec<GameObject>> = Vec::new();
 
         // Initialize empty field
@@ -57,23 +82,24 @@ impl Game {
         Game {
             width: width,
             height: height,
-            speed: speed_milliseconds,
             field: field,
             snake: Vec::new(),
             food: [0, 0],
+            direction: GlideDirection::Right,
         }
     }
 
-    fn move_snake(&mut self, direction: GlideDirection) {
+    fn move_snake(&mut self) {
         let mut head: [usize; 2] = self.snake[0];
         let tail: [usize; 2] = self.snake.pop().unwrap();
 
         // Move head in glide direction
-        match direction {
+        match self.direction {
             GlideDirection::Up => head[1] -= 1,
             GlideDirection::Down => head[1] += 1,
             GlideDirection::Right => head[0] += 1,
             GlideDirection::Left => head[0] -= 1,
+            _ => (),
         }
 
         //Remove tail, add head
@@ -82,8 +108,8 @@ impl Game {
                 self.snake.push(tail);
                 self.spawn_food();
             }
-            GameObject::Wall => Self::_defeat(),
-            GameObject::Snake => Self::_defeat(),
+            GameObject::Wall => (),
+            GameObject::Snake => (),
             GameObject::Space => self.field[tail[1]][tail[0]] = GameObject::Space,
             _ => {}
         };
@@ -111,8 +137,18 @@ impl Game {
         self.field[food[1]][food[0]] = GameObject::Food;
     }
 
+    fn set_direction(&mut self, direction: GameKeys) {
+        match direction {
+            GameKeys::Up => self.direction = GlideDirection::Up,
+            GameKeys::Down => self.direction = GlideDirection::Down,
+            GameKeys::Right => self.direction = GlideDirection::Right,
+            GameKeys::Left => self.direction = GlideDirection::Left,
+            _ => (),
+        }
+    }
+
     fn draw(&self) {
-        print!("{}[2J\r\n", 27 as char); // Clear the terminal screen
+        clear_screen();
         for i in 0..self.height {
             for j in 0..self.width {
                 match self.field[i as usize][j as usize] {
@@ -125,13 +161,17 @@ impl Game {
             print!("\r\n");
         }
     }
+}
 
-    fn _defeat() {
-        print!("You lost!\r\n");
-        process::exit(0);
-    }
+fn clear_screen() {
+    print!("{}[2J\r\n", 27 as char);
+}
 
-    fn _victory() {}
+enum GameObject {
+    Wall,
+    Snake,
+    Food,
+    Space,
 }
 
 enum GlideDirection {
@@ -141,9 +181,10 @@ enum GlideDirection {
     Left,
 }
 
-enum GameObject {
-    Wall,
-    Snake,
-    Food,
-    Space,
+enum GameKeys {
+    Up,
+    Down,
+    Right,
+    Left,
+    Esc,
 }
