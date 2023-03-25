@@ -1,11 +1,11 @@
-use std::thread;
-use std::sync::mpsc::{channel};
-use std::time::Duration;
+use rand::Rng;
 use std::io::{stdin, stdout};
+use std::sync::mpsc::channel;
+use std::thread;
+use std::time::Duration;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
-use rand::Rng;
 
 fn main() {
     let (tx, rx) = channel::<GameKeys>();
