@@ -11,7 +11,7 @@ fn main() {
     let (tx, rx) = channel::<GameKeys>();
     let _stdout = stdout().into_raw_mode();
     let mut game: Game = Game::new(30, 15);
-    let speed_milliseconds: u16 = 100;
+    let speed_milliseconds: u16 = 1000;
 
     let keyboard_handle = thread::spawn(move || {
         let stdin = stdin();
@@ -50,7 +50,7 @@ fn main() {
         thread::sleep(Duration::from_millis(speed_milliseconds as u64));
     }
 
-    keyboard_handle.join().expect("I broke");
+    keyboard_handle.is_finished();
 }
 
 struct Game {
@@ -58,7 +58,6 @@ struct Game {
     height: u16,
     field: Vec<Vec<GameObject>>,
     snake: Vec<[usize; 2]>,
-    food: [usize; 2],
     direction: GlideDirection,
 }
 impl Game {
@@ -85,7 +84,6 @@ impl Game {
             height: height,
             field: field,
             snake: Vec::new(),
-            food: [0, 0],
             direction: GlideDirection::Right,
         }
     }
