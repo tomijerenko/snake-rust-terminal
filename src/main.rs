@@ -8,6 +8,8 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
 fn main() {
+    clear_screen();
+
     let (tx, rx) = channel::<GameKeys>();
     let _stdout = stdout().into_raw_mode();
     let mut game: Game = Game::new(30, 15);
@@ -59,6 +61,7 @@ struct Game {
     field: Vec<Vec<GameObject>>,
     snake: Vec<[usize; 2]>,
     direction: GlideDirection,
+    points: u16,
 }
 impl Game {
     fn new(width: u16, height: u16) -> Self {
@@ -68,9 +71,7 @@ impl Game {
         for i in 0..height {
             let mut col: Vec<GameObject> = Vec::new();
             for j in 0..width {
-                if i == 0 || i == height - 1 {
-                    col.push(GameObject::Wall);
-                } else if j == 0 || j == width - 1 {
+                if i == 0 || i == height - 1 || j == 0 || j == width - 1 {
                     col.push(GameObject::Wall);
                 } else {
                     col.push(GameObject::Space);
@@ -80,11 +81,12 @@ impl Game {
         }
 
         Game {
-            width: width,
-            height: height,
-            field: field,
+            width,
+            height,
+            field,
             snake: Vec::new(),
             direction: GlideDirection::Right,
+            points: 0,
         }
     }
 
@@ -114,7 +116,7 @@ impl Game {
         self.field[head[1]][head[0]] = GameObject::Snake;
         self.snake.insert(0, head);
 
-        return can_move;
+        can_move
     }
 
     fn spawn_snake(&mut self) {
